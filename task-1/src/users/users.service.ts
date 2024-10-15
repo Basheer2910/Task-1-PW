@@ -1,84 +1,51 @@
 /* eslint-disable prettier/prettier */
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { User } from './schema/user.schema';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 
 @Injectable()
 export class UsersService {
-    private users =[
-        {
-            id:0,
-            name: "Basheer",
-            phone: 9823982828,
-            status: "active"
-        },
-        {
-            id:1,
-            name:"Ali",
-            phone: 829832474,
-            status:'active'
-        },
-        {
-            id:2,
-            name:"Prahan",
-            phone: 829832474,
-            status:'inactive'
-        }
-    ];
+  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
-    // Create new Entry
-  create(createUserDto: CreateUserDto) {
-    console.log(createUserDto);
-    const id = new Date().getTime();
-    const user={...createUserDto, id : +id, status : 'active'};
-    // console.log(user);
-    this.users=[...this.users,user];
-    return user;
+  // Create new Entry
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    const user = { ...createUserDto, status: 'active' };
+    const createdUser = new this.userModel(user);
+    return createdUser.save();
   }
 
-//Get All users
-  findAll() {
-    const users = this.users.filter((u)=>{
-        return u.status == 'active';
-    });
-    return users;
+  // Get All users
+  async findAll(): Promise<User[]> {
+    return this.userModel.find({status:'active'}).exec();
   }
 
   // Get Single User By id
-  findOne(id: number) {
-    const user = this.users.filter((u)=>{
-        return u.id==+id && u.status == 'active';
-    });
-    if(user.length==0) return "No User with id "+id;
-    return user[0];
+  async findOne(id: string): Promise<User> {
+    const user = await this.userModel.findOne({_id:id, status:'active'}).exec();
+    if (!user) {
+      throw new NotFoundException(`User with id ${id} not found`);
+    }
+    return user;
   }
 
-// Update User
-  update(id: number, updateUserDto: UpdateUserDto) {
-    const user=this.users.filter((u)=>{
-        return u.id==id && u.status=='active';
-    })
-    if(user.length==0) return "No such User";
-    const remainingUsers=this.users.filter((u)=>{
-        return u.id!=id;
-    })
-    const updatedUser={...user[0],...updateUserDto};
-    this.users=[...remainingUsers,updatedUser];
+  // Update User
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const updatedUser = await this.userModel.findOneAndUpdate({_id:id,status:'active'}, updateUserDto, { new: true }).exec();
+    if (!updatedUser) {
+      throw new NotFoundException(`User with id ${id} not found`);
+    }
     return updatedUser;
   }
-  
-  // Delete User ie. make user user status inactive
-  remove(id: number) {
-    const user=this.users.filter((u)=>{
-        return u.id==id && u.status=='active';
-    });
-    const remainingUsers=this.users.filter((u)=>{
-        return u.id!=id;
-    })
-    if(user.length==0) return "User is not present in dataset";
-    const deletedUser={...user[0],status:'inactive'};
-    this.users=[...remainingUsers,deletedUser];
-    console.log(this.users);
-    return deletedUser;
+
+  // Delete User, i.e., make user status inactive
+  async remove(id: string): Promise<User> {
+    const user = await this.userModel.findOneAndUpdate({_id:id,status:'active'},{ status: 'inactive' }).exec();
+    if (!user) {
+      throw new NotFoundException(`User with id ${id} not found`);
+    }
+    return user;
   }
 }
